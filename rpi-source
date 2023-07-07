@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #
 # Copyright (C) 2014 Noralf Tronnes
@@ -11,9 +11,9 @@ import os
 import struct
 import sys
 import argparse
-import urllib
-import urllib2
-import urlparse
+import urllib.request
+import urllib.error
+import urllib.parse
 import gzip
 import subprocess
 import re
@@ -107,22 +107,24 @@ def writef(f, str, mode='w'):
 def download(url):
     debug("download: %s" % url)
     try:
-        res = urllib2.urlopen(url).read()
-    except urllib2.HTTPError, e:
-        fail("Couldn't download %s, HTTPError: %s" % (url, e.code))
-    except urllib2.URLError, e:
-        fail("Couldn't download %s, URLError: %s" % (url, e.args))
+        res =  urllib.request.urlopen(url).read()
+    except urllib.error.URLError as e:
+        fail(
+             "Couldn't download %s, HTTPError: %s\n\n%s"
+             % (url, e.code, json.dumps(json.load(e), indent=4))
+        )
     return res
 
 def download_to(url, file):
     debug("download_to: %s -> %s" % (url, file))
     if not args.dry_run:
-        urllib.urlretrieve (url, file)
+        urllib.request.urlretrieve (url, file)
+        repo_short = urllib.parse.urlparse(script_repo).path
 
 def update_get_head():
     if update_get_head.ref:
         return update_get_head.ref
-    repo_short = urlparse.urlparse(script_repo).path
+    repo_short = urllib.parse.urlparse(script_repo).path
     repo_api = "https://api.github.com/repos%s/git/refs/heads/master" % repo_short
     res = download(repo_api)
     try:
@@ -170,7 +172,7 @@ def do_update():
     os.execv(sys.executable, argv)
 
 def check_diskspace(dir):
-    df = sh_out("df %s" % dir)
+    df = sh_out("df %s" % dir).decode()
     nums = re.findall(r'(?<=\s)\d+(?=\s+)', df)
     if not nums or len(nums) != 3:
         info("Warning: unable to check available diskspace")
@@ -210,7 +212,7 @@ def proc_config_gz():
         return ''
 
     with gzip.open('/proc/config.gz', 'rb') as f:
-        return f.read()
+        return f.read().decode('utf-8')
 
 
 def processor_type_suffix():
@@ -233,12 +235,12 @@ def rpi_update_method(uri):
         fw_rev = f.read().strip()
     info("Firmware revision: %s" % fw_rev)
 
-    repo_short = urlparse.urlparse(uri).path
+    repo_short = urllib.parse.urlparse(uri).path
 
     repo_api = "https://api.github.com/repos%s" % repo_short
     repo_raw = "https://raw.githubusercontent.com%s" % repo_short
 
-    kernel.git_hash = download("%s/%s/git_hash" % (repo_raw, fw_rev)).strip()
+    kernel.git_hash = download("%s/%s/git_hash" % (repo_raw, fw_rev)).strip().decode('utf-8')
     kernel.symvers = "%s/%s/Module%s.symvers" % (repo_raw, fw_rev, processor_type_suffix())
 
     if not args.default_config:
@@ -250,7 +252,7 @@ def debian_method(fn):
     kernel = Kernel()
     info("Using: %s" % fn)
     with gzip.open(fn, 'rb') as f:
-        debian_changelog = f.read()
+        debian_changelog = f.read().decode('utf-8')
 
     # Find first firmware entry in log (latest entries are at the top)
     fw_rev = re.search(r'firmware as of ([0-9a-fA-F]+)', debian_changelog)
@@ -263,7 +265,7 @@ def debian_method(fn):
 
     repo_raw = "https://raw.githubusercontent.com/raspberrypi/firmware"
 
-    kernel.git_hash = download("%s/%s/extra/git_hash" % (repo_raw, fw_rev)).strip()
+    kernel.git_hash = download("%s/%s/extra/git_hash" % (repo_raw, fw_rev)).strip().decode('utf-8')
     kernel.symvers = "%s/%s/extra/Module%s.symvers" % (repo_raw, fw_rev, processor_type_suffix())
 
     if not args.default_config:
