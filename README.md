@@ -1,5 +1,6 @@
 rpi-source
 ==========
+Updated 2023 to support python 3
 
 Raspberry Pi kernel source installer
 
